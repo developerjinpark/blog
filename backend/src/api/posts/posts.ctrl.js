@@ -42,9 +42,28 @@ exports.write = async ctx => {
 }
 
 exports.list = async ctx => {
+    const page = parseInt(ctx.query.page || 1, 10)
+
+    if (page < 1) {
+        ctx.status = 400
+        return 
+    }
     try {
-        const posts = await Post.find().exec()
-        ctx.body = posts
+        const posts = await Post.find()
+            .sort({_id: -1})
+            .limit(10)
+            .skip((page - 1) * 10)
+            .exec()
+        const postCount = await Post.countDocuments().exec()
+        // set response header
+        ctx.set('Last-Page', Math.ceil(postCount / 10))
+
+        const limitBodyLength = post => ({
+            ...post.toJSON(),
+            body: post.body.length < 100 ? post.body : `${post.body.slice(0,100)}...`
+        })
+
+        ctx.body = posts.map(limitBodyLength)
     } catch (e) {
         ctx.throw(e, 500)
     }
