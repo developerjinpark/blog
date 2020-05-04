@@ -53,13 +53,14 @@ exports.list = async ctx => {
             .sort({_id: -1})
             .limit(10)
             .skip((page - 1) * 10)
+            .lean()
             .exec()
         const postCount = await Post.countDocuments().exec()
         // set response header
         ctx.set('Last-Page', Math.ceil(postCount / 10))
 
         const limitBodyLength = post => ({
-            ...post.toJSON(),
+            ...post,
             body: post.body.length < 100 ? post.body : `${post.body.slice(0,100)}...`
         })
 
