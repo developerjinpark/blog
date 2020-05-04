@@ -1,87 +1,90 @@
-let postId = 1
+// check objectId
+const {ObjectId} = require('mongoose').Types
+exports.checkObjectId = (ctx, next) => {
+    const {id} = ctx.params
 
-const posts = [
-    {
-        id: 1,
-        title: 'title',
-        body: 'content',
+    if (!ObjectId.isValid(id)) {
+        ctx.status = 400
+        return null
     }
-]
 
-exports.write = ctx => {
-    const {title, body} = ctx.request.body
-
-    postId++
-
-    const post = {
-        id: postId,
-        title,
-        body
-    }
-    posts.push(post)
-    ctx.body = post
+    return next()
 }
 
-exports.list = ctx => {ctx.body = posts}
+const Post = require('api/models/post')
+const Joi = require('joi')
 
-exports.read = ctx => {
-    const {id} = ctx.params
-    const post = posts.find(p => p.id.toString() === id)
+exports.write = async ctx => {
+    // check body
+    const schema = Joi.object().keys({
+        title: Joi.string().required(),
+        body: Joi.string().required(),
+        tags: Joi.array().items(Joi.string()).required()
+    })
 
-    if (!post) {
-        ctx.status = 404
-        ctx.body = {
-            message: 'The post does not exist'
-        }
+    const result = Joi.validate(ctx.request.body, schema)
+
+    if (result.error) {
+        ctx.status = 400
+        ctx.body = result.error
         return
     }
-    ctx.body = post
+
+    const {title, body, tags} = ctx.request.body
+    const post = new Post({title, body, tags})
+
+    try {
+        await post.save()
+        ctx.body = post
+    } catch (e) {
+        ctx.throw(e, 500)
+    }
 }
 
-exports.remove = ctx => {
-    const {id} = ctx.params
-    const index = posts.findIndex(p => p.id.toString() === id)
-    if (index === -1) {
-        ctx.status = 404
-        ctx.body = {
-            message: 'The post does not exist'
-        }
-        return
+exports.list = async ctx => {
+    try {
+        const posts = await Post.find().exec()
+        ctx.body = posts
+    } catch (e) {
+        ctx.throw(e, 500)
     }
-    posts.splice(index, 1)
-    ctx.status = 204    // no content
 }
 
-exports.replace = ctx => {
+exports.read = async ctx => {
     const {id} = ctx.params
-    const index = posts.findIndex(p => p.id.toString() === id)
-    if (index === -1) {
-        ctx.status = 404
-        ctx.body = {
-            message: 'The post does not exist'
+
+    try {
+        const post = await Post.findById(id).exec()
+        if (!post) {
+            ctx.status = 404
+            return
         }
-        return
+        ctx.body = post
+    } catch (e) {
+        ctx.throw(e, 500)
     }
-    posts[index] = {
-        id,
-        ...ctx.request.body
-    }
-    ctx.body = posts[index]
 }
 
-exports.update = ctx => {
+exports.remove = async ctx => {
     const {id} = ctx.params
-    const index = posts.findIndex(p => p.id.toString() === id)
-    if (index === -1) {
-        ctx.status = 404
-        ctx.body = {
-            message: 'The post does not exist'
+    try {
+        await Post.findByIdAndRemove(id).exec()
+        ctx.status = 204
+    } catch(e) {
+        ctx.throw(e, 500)
+    }
+}
+
+exports.update = async ctx => {
+    const {id} = ctx.params
+    try {
+        const post = await Post.findByIdAndUpdate(id, ctx.request.body, { new: true }).exec()
+        if (!post) {
+            ctx.status = 404
+            return
         }
-        return
+        ctx.body = post
+    } catch(e) {
+        ctx.throw(e, 500)
     }
-    posts[index] = {
-        ...posts[index],
-        ...ctx.request.body
-    }
-    ctx.body = posts[index]
 }
