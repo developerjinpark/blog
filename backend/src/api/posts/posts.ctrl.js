@@ -14,6 +14,13 @@ exports.checkObjectId = (ctx, next) => {
 const Post = require('api/models/post')
 const Joi = require('joi')
 
+exports.checkLogin = (ctx, next) => {
+    if (!ctx.session.logged) {
+        ctx.status = 401
+        return null
+    }
+    return next()
+}
 exports.write = async ctx => {
     // check body
     const schema = Joi.object().keys({
